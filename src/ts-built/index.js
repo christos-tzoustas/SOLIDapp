@@ -9,38 +9,38 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 var Todo = /** @class */ (function () {
-    function Todo(description) {
+    function Todo(description, date, UUID) {
         this.description = description;
         this.status = "incomplete";
-        this.date = new Date();
-        this.id = new cryptoUUID().createRandomUUID();
-        new ConsoleLogger().log(this);
+        this.date = date;
+        this.id = UUID;
     }
     return Todo;
 }());
+// LOGGER
 var ConsoleLogger = /** @class */ (function () {
     function ConsoleLogger() {
     }
-    ConsoleLogger.prototype.log = function (todo) {
-        console.log("The todo with id \"".concat(todo.id, "\" and description \"").concat(todo.description, "\" was just added in the ").concat(todo.status === "complete" ? "todo" : "done", " pile"));
+    ConsoleLogger.log = function (todo, operation) {
+        console.log("The todo with id \"".concat(todo.id, "\" and description \"").concat(todo.description, "\" was just ").concat(operation));
     };
     return ConsoleLogger;
 }());
-var cryptoUUID = /** @class */ (function () {
-    function cryptoUUID() {
+var CryptoUUID = /** @class */ (function () {
+    function CryptoUUID() {
     }
-    cryptoUUID.prototype.createRandomUUID = function () {
+    CryptoUUID.prototype.createRandomUUID = function () {
         return crypto.randomUUID();
     };
-    return cryptoUUID;
+    return CryptoUUID;
 }());
-var stackOverflowUUID = /** @class */ (function () {
-    function stackOverflowUUID() {
+var StackOverflowUUID = /** @class */ (function () {
+    function StackOverflowUUID() {
     }
-    stackOverflowUUID.prototype.createRandomUUID = function () {
+    StackOverflowUUID.prototype.createRandomUUID = function () {
         return this.generateUUID();
     };
-    stackOverflowUUID.prototype.generateUUID = function () {
+    StackOverflowUUID.prototype.generateUUID = function () {
         var d = new Date().getTime(); //Timestamp
         var d2 = (typeof performance !== "undefined" &&
             performance.now &&
@@ -61,44 +61,71 @@ var stackOverflowUUID = /** @class */ (function () {
             return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
         });
     };
-    return stackOverflowUUID;
+    return StackOverflowUUID;
 }());
 var BasicStateHandler = /** @class */ (function () {
     function BasicStateHandler() {
-        this.completeTodos = [];
-        this.incompleteTodos = [];
+        this.state = {
+            completeTodos: [],
+            incompleteTodos: [],
+        };
     }
-    BasicStateHandler.prototype.addTodo = function (description) {
-        var todo = new Todo(description);
-        this.completeTodos = __spreadArray(__spreadArray([], this.completeTodos, true), [todo], false);
+    BasicStateHandler.prototype.reducer = function (_a) {
+        var type = _a.type, payload = _a.payload;
+        switch (type) {
+            case "add":
+                this.addTodo(payload);
+                break;
+            case "remove":
+                this.removeTodo(payload);
+                break;
+            case "done":
+                this.markAsDone(payload);
+                break;
+            case "undo":
+                this.markAsTodo(payload);
+                break;
+            default:
+                console.error("could not match action type ".concat(type, " for todo with id ").concat(payload.id, "}"));
+        }
+        ConsoleLogger.log(payload, type);
+    };
+    BasicStateHandler.prototype.addTodo = function (todo) {
+        this.state.incompleteTodos = __spreadArray(__spreadArray([], this.state.incompleteTodos, true), [todo], false);
         return todo;
     };
     BasicStateHandler.prototype.removeTodo = function (todo) {
-        this.completeTodos = this.completeTodos.filter(function (completeTodo) { return completeTodo.id !== todo.id; });
-        this.incompleteTodos = this.incompleteTodos.filter(function (incompleteTodo) { return incompleteTodo.id !== todo.id; });
+        this.state.completeTodos = this.state.completeTodos.filter(function (completeTodo) { return completeTodo.id !== todo.id; });
+        this.state.incompleteTodos = this.state.incompleteTodos.filter(function (incompleteTodo) { return incompleteTodo.id !== todo.id; });
         return todo;
     };
     BasicStateHandler.prototype.markAsDone = function (todo) {
-        this.incompleteTodos = this.incompleteTodos.filter(function (incompleteTodo) { return incompleteTodo.id !== todo.id; });
-        this.completeTodos = __spreadArray(__spreadArray([], this.completeTodos, true), [todo], false);
+        todo.status = "complete";
+        this.state.incompleteTodos = this.state.incompleteTodos.filter(function (incompleteTodo) { return incompleteTodo.id !== todo.id; });
+        this.state.completeTodos = __spreadArray(__spreadArray([], this.state.completeTodos, true), [todo], false);
         return todo;
     };
     BasicStateHandler.prototype.markAsTodo = function (todo) {
-        this.completeTodos = this.completeTodos.filter(function (incompleteTodo) { return incompleteTodo.id !== todo.id; });
-        this.incompleteTodos = __spreadArray(__spreadArray([], this.incompleteTodos, true), [todo], false);
+        todo.status = "incomplete";
+        this.state.completeTodos = this.state.completeTodos.filter(function (completeTodo) { return completeTodo.id !== todo.id; });
+        this.state.incompleteTodos = __spreadArray(__spreadArray([], this.state.incompleteTodos, true), [todo], false);
         return todo;
     };
     return BasicStateHandler;
 }());
 var App = /** @class */ (function () {
     function App(_a) {
-        var root = _a.root, addBtn = _a.addBtn, input = _a.input, doneList = _a.doneList, todoList = _a.todoList, stateHandler = _a.stateHandler;
+        var root = _a.root, addBtn = _a.addBtn, input = _a.input, doneList = _a.doneList, todoList = _a.todoList, stateHandler = _a.stateHandler, UUIDGenerator = _a.UUIDGenerator, statePersistence = _a.statePersistence;
         this.root = this.getElementbyId(root);
         this.addBtn = this.getElementbyId(addBtn);
         this.input = this.getElementbyId(input);
         this.todoList = this.getElementbyId(todoList);
         this.doneList = this.getElementbyId(doneList);
         this.stateHandler = stateHandler;
+        this.UUIDGenerator = UUIDGenerator;
+        this.statePersistence = statePersistence;
+        // temporary
+        this.saveBtn = this.getElementbyId("save");
         this.initiate();
     }
     App.prototype.getElementbyId = function (id) {
@@ -106,40 +133,98 @@ var App = /** @class */ (function () {
     };
     App.prototype.initiate = function () {
         var _this = this;
+        // check if any state is saved
+        // basically run the load function from persistence clss
+        var loadedState = this.statePersistence.load();
+        console.log({ loadedState: loadedState });
+        if (loadedState) {
+            this.stateHandler.state = loadedState;
+            // need to also have a load function for synchronizing html
+            // with the loaded state
+            this.synchronizeHTMLWithLoadedState(loadedState);
+        }
         this.addBtn.addEventListener("click", function () {
             var userInput = _this.input.value;
             if (userInput) {
-                var todo = _this.stateHandler.addTodo(userInput);
-                _this.addTodoHTML(todo);
+                var todo = new Todo(userInput, new Date(), _this.UUIDGenerator.createRandomUUID());
+                _this.stateHandler.reducer({ type: "add", payload: todo });
+                _this.addTodo(todo);
             }
         });
+        this.saveBtn.addEventListener("click", function () {
+            _this.statePersistence.save(_this.stateHandler.state);
+        });
     };
-    App.prototype.addTodoHTML = function (todo) {
+    App.prototype.synchronizeHTMLWithLoadedState = function (state) {
         var _this = this;
-        var li = document.createElement("li");
-        li.textContent = todo.description;
-        var span = document.createElement("span");
-        span.textContent = " [X]";
-        span.style.cursor = "pointer";
-        li.append(span);
-        li.dataset.id = todo.id;
-        this.todoList.appendChild(li);
-        span.addEventListener("click", function () { return _this.removeTodoHTML(todo); });
+        __spreadArray(__spreadArray([], state.completeTodos, true), state.incompleteTodos, true).forEach(function (todo) {
+            return _this.addTodo(todo);
+        });
     };
-    App.prototype.removeTodoHTML = function (todo) {
-        var completeTodo = this.doneList.querySelector("[data-id=\"".concat(todo.id, "\"]"));
-        var incompleteTodo = this.todoList.querySelector("[data-id=\"".concat(todo.id, "\"]"));
-        if (completeTodo) {
-            this.doneList.removeChild(completeTodo);
-        }
-        else if (incompleteTodo) {
-            this.todoList.removeChild(incompleteTodo);
+    App.prototype.addTodo = function (todo) {
+        var _this = this;
+        var _a = this.generateTodoHTML(todo), todoLi = _a.todoLi, deleteSpan = _a.deleteSpan, completeSpan = _a.completeSpan;
+        if (todo.status === "incomplete") {
+            this.todoList.appendChild(todoLi);
         }
         else {
-            throw new Error("No todo found to remove!");
+            this.doneList.appendChild(todoLi);
         }
+        deleteSpan.addEventListener("click", function () { return _this.removeTodo(todo); });
+        completeSpan.addEventListener("click", function () { return _this.toggleDoneStatus(todo); });
+    };
+    App.prototype.generateTodoHTML = function (todo) {
+        var todoLi = document.createElement("li");
+        todoLi.textContent = todo.description;
+        var deleteSpan = document.createElement("span");
+        deleteSpan.textContent = " [X]";
+        deleteSpan.style.cursor = "pointer";
+        var completeSpan = document.createElement("span");
+        completeSpan.textContent = " [done]";
+        completeSpan.style.cursor = "pointer";
+        todoLi.append(completeSpan, deleteSpan);
+        todoLi.dataset.id = todo.id;
+        todoLi.classList.toggle("done", todo.status === "complete");
+        return { todoLi: todoLi, deleteSpan: deleteSpan, completeSpan: completeSpan };
+    };
+    App.prototype.removeTodo = function (todo) {
+        var todoLi = document.querySelector("[data-id=\"".concat(todo.id, "\"]"));
+        if (todo.status === "complete") {
+            this.doneList.removeChild(todoLi);
+        }
+        else {
+            this.todoList.removeChild(todoLi);
+        }
+        this.stateHandler.reducer({ type: "remove", payload: todo });
+    };
+    App.prototype.toggleDoneStatus = function (todo) {
+        var li = document.querySelector("[data-id=\"".concat(todo.id, "\"]"));
+        if (todo.status === "incomplete") {
+            this.todoList.removeChild(li);
+            this.doneList.append(li);
+            this.stateHandler.reducer({ type: "done", payload: todo });
+        }
+        else {
+            this.doneList.removeChild(li);
+            this.todoList.append(li);
+            this.stateHandler.reducer({ type: "undo", payload: todo });
+        }
+        li === null || li === void 0 ? void 0 : li.classList.toggle("done", todo.status === "complete");
     };
     return App;
+}());
+var LocalStoragePersistence = /** @class */ (function () {
+    function LocalStoragePersistence() {
+    }
+    LocalStoragePersistence.prototype.save = function (state) {
+        console.log("will save", state);
+        localStorage.setItem("todoState", JSON.stringify(state));
+    };
+    LocalStoragePersistence.prototype.load = function () {
+        var todoState = localStorage.getItem("todoState");
+        return JSON.parse(todoState);
+    };
+    return LocalStoragePersistence;
 }());
 new App({
     root: "root",
@@ -148,4 +233,6 @@ new App({
     todoList: "todo",
     doneList: "done",
     stateHandler: new BasicStateHandler(),
+    UUIDGenerator: new CryptoUUID(),
+    statePersistence: new LocalStoragePersistence(),
 });

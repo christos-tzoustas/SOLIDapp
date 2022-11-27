@@ -6,4 +6,4 @@ WHAT SHOULD IT DO
 -delete todos
 -complete todos
 -uncomplete todos
--save any change to the todos state in the file system
+-save any change to the todos state in the file system or browser local storage

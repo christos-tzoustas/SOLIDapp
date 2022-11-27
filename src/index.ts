@@ -8,29 +8,20 @@ interface Todo {
 }
 
 class Todo {
-  constructor(description) {
+  constructor(description, date, UUID) {
     this.description = description;
     this.status = "incomplete";
-    this.date = new Date();
-    this.id = new cryptoUUID().createRandomUUID();
-    new ConsoleLogger().log(this);
+    this.date = date;
+    this.id = UUID;
   }
 }
 
 // LOGGER
 
-interface LoggerInterface {
-  log: (todo: Todo) => void;
-}
-
-class ConsoleLogger implements LoggerInterface {
-  log(todo: Todo) {
+class ConsoleLogger {
+  static log(todo: Todo, operation: string) {
     console.log(
-      `The todo with id "${todo.id}" and description "${
-        todo.description
-      }" was just added in the ${
-        todo.status === "complete" ? "todo" : "done"
-      } pile`
+      `The todo with id "${todo.id}" and description "${todo.description}" was just ${operation}`
     );
   }
 }
@@ -41,13 +32,13 @@ interface UUIDInterface {
   createRandomUUID: () => string;
 }
 
-class cryptoUUID implements UUIDInterface {
+class CryptoUUID implements UUIDInterface {
   createRandomUUID() {
     return crypto.randomUUID();
   }
 }
 
-class stackOverflowUUID implements UUIDInterface {
+class StackOverflowUUID implements UUIDInterface {
   createRandomUUID() {
     return this.generateUUID();
   }
@@ -80,53 +71,84 @@ class stackOverflowUUID implements UUIDInterface {
 
 // STATE MANIPULATOR
 
-interface StateHandlerInterface {
+type State = {
   completeTodos: Todo[];
   incompleteTodos: Todo[];
-  addTodo: (description: Todo["description"]) => Todo;
+};
+
+type StateAction = {
+  type: "add" | "remove" | "done" | "undo";
+  payload: Todo;
+};
+
+interface StateHandlerInterface {
+  state: State;
+  reducer: (action: StateAction) => void;
+  addTodo: (todo: Todo) => Todo;
   removeTodo: (todo: Todo) => Todo;
   markAsDone: (todo: Todo) => Todo;
   markAsTodo: (todo: Todo) => Todo;
 }
 
 class BasicStateHandler implements StateHandlerInterface {
-  completeTodos: Todo[] = [];
-  incompleteTodos: Todo[] = [];
-  addTodo(description: Todo["description"]) {
-    const todo = new Todo(description);
-    this.completeTodos = [...this.completeTodos, todo];
+  state: State = {
+    completeTodos: [],
+    incompleteTodos: [],
+  };
+
+  reducer({ type, payload }: { type: string; payload: Todo }) {
+    switch (type) {
+      case "add":
+        this.addTodo(payload);
+        break;
+      case "remove":
+        this.removeTodo(payload);
+        break;
+      case "done":
+        this.markAsDone(payload);
+        break;
+      case "undo":
+        this.markAsTodo(payload);
+        break;
+      default:
+        console.error(
+          `could not match action type ${type} for todo with id ${payload.id}}`
+        );
+    }
+
+    ConsoleLogger.log(payload, type);
+  }
+
+  addTodo(todo: Todo) {
+    this.state.incompleteTodos = [...this.state.incompleteTodos, todo];
     return todo;
   }
   removeTodo(todo: Todo) {
-    this.completeTodos = this.completeTodos.filter(
+    this.state.completeTodos = this.state.completeTodos.filter(
       (completeTodo) => completeTodo.id !== todo.id
     );
-    this.incompleteTodos = this.incompleteTodos.filter(
+    this.state.incompleteTodos = this.state.incompleteTodos.filter(
       (incompleteTodo) => incompleteTodo.id !== todo.id
     );
     return todo;
   }
   markAsDone(todo: Todo) {
-    this.incompleteTodos = this.incompleteTodos.filter(
+    todo.status = "complete";
+    this.state.incompleteTodos = this.state.incompleteTodos.filter(
       (incompleteTodo) => incompleteTodo.id !== todo.id
     );
-    this.completeTodos = [...this.completeTodos, todo];
+    this.state.completeTodos = [...this.state.completeTodos, todo];
     return todo;
   }
   markAsTodo(todo: Todo) {
-    this.completeTodos = this.completeTodos.filter(
-      (incompleteTodo) => incompleteTodo.id !== todo.id
+    todo.status = "incomplete";
+    this.state.completeTodos = this.state.completeTodos.filter(
+      (completeTodo) => completeTodo.id !== todo.id
     );
-    this.incompleteTodos = [...this.incompleteTodos, todo];
+    this.state.incompleteTodos = [...this.state.incompleteTodos, todo];
     return todo;
   }
 }
-
-// // DOM MANIPULATOR
-
-// interface DOMManipulatorInterface {
-
-// }
 
 // APP
 interface AppOptions {
@@ -136,6 +158,8 @@ interface AppOptions {
   todoList: string;
   doneList: string;
   stateHandler: StateHandlerInterface;
+  UUIDGenerator: UUIDInterface;
+  statePersistence: StatePersistence;
 }
 
 interface App {
@@ -145,6 +169,10 @@ interface App {
   todoList: HTMLUListElement;
   doneList: HTMLUListElement;
   stateHandler: StateHandlerInterface;
+  UUIDGenerator: UUIDInterface;
+  statePersistence: StatePersistence;
+  // temporary
+  saveBtn: HTMLButtonElement;
 }
 
 class App {
@@ -155,6 +183,8 @@ class App {
     doneList,
     todoList,
     stateHandler,
+    UUIDGenerator,
+    statePersistence,
   }: AppOptions) {
     this.root = this.getElementbyId(root);
     this.addBtn = this.getElementbyId(addBtn) as HTMLButtonElement;
@@ -162,6 +192,10 @@ class App {
     this.todoList = this.getElementbyId(todoList) as HTMLUListElement;
     this.doneList = this.getElementbyId(doneList) as HTMLUListElement;
     this.stateHandler = stateHandler;
+    this.UUIDGenerator = UUIDGenerator;
+    this.statePersistence = statePersistence;
+    // temporary
+    this.saveBtn = this.getElementbyId("save") as HTMLButtonElement;
     this.initiate();
   }
 
@@ -170,40 +204,109 @@ class App {
   }
 
   initiate() {
+    // check if any state is saved
+    // basically run the load function from persistence clss
+    const loadedState = this.statePersistence.load();
+    console.log({ loadedState });
+    if (loadedState) {
+      this.stateHandler.state = loadedState;
+      // need to also have a load function for synchronizing html
+      // with the loaded state
+      this.synchronizeHTMLWithLoadedState(loadedState);
+    }
     this.addBtn.addEventListener("click", () => {
       const userInput = this.input.value;
 
       if (userInput) {
-        const todo = this.stateHandler.addTodo(userInput);
-        this.addTodoHTML(todo);
+        const todo = new Todo(
+          userInput,
+          new Date(),
+          this.UUIDGenerator.createRandomUUID()
+        );
+        this.stateHandler.reducer({ type: "add", payload: todo });
+        this.addTodo(todo);
       }
+    });
+
+    this.saveBtn.addEventListener("click", () => {
+      this.statePersistence.save(this.stateHandler.state);
     });
   }
 
-  addTodoHTML(todo: Todo) {
-    const li = document.createElement("li");
-    li.textContent = todo.description;
-    const span = document.createElement("span");
-    span.textContent = " [X]";
-    span.style.cursor = "pointer";
-    li.append(span);
-    li.dataset.id = todo.id;
-    this.todoList.appendChild(li);
-    span.addEventListener("click", () => this.removeTodoHTML(todo));
+  synchronizeHTMLWithLoadedState(state: StateHandlerInterface["state"]) {
+    [...state.completeTodos, ...state.incompleteTodos].forEach((todo) =>
+      this.addTodo(todo)
+    );
   }
 
-  removeTodoHTML(todo: Todo) {
-    const completeTodo = this.doneList.querySelector(`[data-id="${todo.id}"]`);
-    const incompleteTodo = this.todoList.querySelector(
-      `[data-id="${todo.id}"]`
-    );
-    if (completeTodo) {
-      this.doneList.removeChild(completeTodo);
-    } else if (incompleteTodo) {
-      this.todoList.removeChild(incompleteTodo);
+  addTodo(todo: Todo) {
+    const { todoLi, deleteSpan, completeSpan } = this.generateTodoHTML(todo);
+    if (todo.status === "incomplete") {
+      this.todoList.appendChild(todoLi);
     } else {
-      throw new Error("No todo found to remove!");
+      this.doneList.appendChild(todoLi);
     }
+    deleteSpan.addEventListener("click", () => this.removeTodo(todo));
+    completeSpan.addEventListener("click", () => this.toggleDoneStatus(todo));
+  }
+
+  generateTodoHTML(todo: Todo) {
+    const todoLi = document.createElement("li");
+    todoLi.textContent = todo.description;
+    const deleteSpan = document.createElement("span");
+    deleteSpan.textContent = " [X]";
+    deleteSpan.style.cursor = "pointer";
+    const completeSpan = document.createElement("span");
+    completeSpan.textContent = " [done]";
+    completeSpan.style.cursor = "pointer";
+    todoLi.append(completeSpan, deleteSpan);
+    todoLi.dataset.id = todo.id;
+    todoLi.classList.toggle("done", todo.status === "complete");
+    return { todoLi, deleteSpan, completeSpan };
+  }
+
+  removeTodo(todo: Todo) {
+    const todoLi = document.querySelector(`[data-id="${todo.id}"]`);
+    if (todo.status === "complete") {
+      this.doneList.removeChild(todoLi);
+    } else {
+      this.todoList.removeChild(todoLi);
+    }
+
+    this.stateHandler.reducer({ type: "remove", payload: todo });
+  }
+
+  toggleDoneStatus(todo: Todo) {
+    const li = document.querySelector(`[data-id="${todo.id}"]`);
+
+    if (todo.status === "incomplete") {
+      this.todoList.removeChild(li);
+      this.doneList.append(li);
+      this.stateHandler.reducer({ type: "done", payload: todo });
+    } else {
+      this.doneList.removeChild(li);
+      this.todoList.append(li);
+      this.stateHandler.reducer({ type: "undo", payload: todo });
+    }
+
+    li?.classList.toggle("done", todo.status === "complete");
+  }
+}
+
+interface StatePersistence {
+  save: (state: StateHandlerInterface["state"]) => void;
+  load: () => StateHandlerInterface["state"];
+}
+
+class LocalStoragePersistence {
+  save(state: StateHandlerInterface["state"]) {
+    console.log(`will save`, state);
+    localStorage.setItem("todoState", JSON.stringify(state));
+  }
+
+  load() {
+    const todoState = localStorage.getItem("todoState");
+    return JSON.parse(todoState);
   }
 }
 
@@ -214,4 +317,6 @@ new App({
   todoList: "todo",
   doneList: "done",
   stateHandler: new BasicStateHandler(),
+  UUIDGenerator: new CryptoUUID(),
+  statePersistence: new LocalStoragePersistence(),
 });
