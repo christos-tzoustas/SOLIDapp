@@ -2,6 +2,7 @@ import { CryptoUUID } from "./modules/uuid.js";
 import { Todo } from "./modules/todo.js";
 import { BasicState } from "./modules/state.js";
 import { LocalStoragePersistence, } from "./modules/persistence.js";
+import { getElementbyId } from "./modules/utils.js";
 class App {
     root;
     addBtn;
@@ -13,21 +14,18 @@ class App {
     statePersistence;
     saveBtn;
     loadBtn;
-    constructor({ rootId, addBtnId, inputId, doneListId, todoListId, saveBtnId, loadBtnId, stateHandler, UUIDGenerator, statePersistence, }) {
-        this.root = this.getElementbyId(rootId);
-        this.addBtn = this.getElementbyId(addBtnId);
-        this.input = this.getElementbyId(inputId);
-        this.todoList = this.getElementbyId(todoListId);
-        this.doneList = this.getElementbyId(doneListId);
+    constructor({ root, addBtn, input, doneList, todoList, saveBtn, loadBtn, stateHandler, UUIDGenerator, statePersistence, }) {
+        this.root = root;
+        this.addBtn = addBtn;
+        this.input = input;
+        this.todoList = todoList;
+        this.doneList = doneList;
         this.stateHandler = stateHandler;
         this.UUIDGenerator = UUIDGenerator;
         this.statePersistence = statePersistence;
-        this.saveBtn = this.getElementbyId(saveBtnId);
-        this.loadBtn = this.getElementbyId(loadBtnId);
+        this.saveBtn = saveBtn;
+        this.loadBtn = loadBtn;
         this.initiate();
-    }
-    getElementbyId(id) {
-        return document.querySelector(`#${id}`);
     }
     initiate() {
         this.addBtn.addEventListener("click", () => {
@@ -52,6 +50,8 @@ class App {
         }
     }
     synchronizeHTMLWithLoadedState(state) {
+        this.todoList.innerHTML = "";
+        this.doneList.innerHTML = "";
         [...state.completeTodos, ...state.incompleteTodos].forEach((todo) => this.addTodo(todo));
     }
     addTodo(todo) {
@@ -105,13 +105,13 @@ class App {
     }
 }
 new App({
-    rootId: "root",
-    addBtnId: "addBtn",
-    inputId: "input",
-    todoListId: "todo",
-    doneListId: "done",
-    saveBtnId: "save",
-    loadBtnId: "load",
+    root: getElementbyId("root"),
+    addBtn: getElementbyId("addBtn"),
+    input: getElementbyId("input"),
+    todoList: getElementbyId("todoList"),
+    doneList: getElementbyId("doneList"),
+    saveBtn: getElementbyId("saveBtn"),
+    loadBtn: getElementbyId("loadBtn"),
     stateHandler: new BasicState(),
     UUIDGenerator: new CryptoUUID(),
     statePersistence: new LocalStoragePersistence(),

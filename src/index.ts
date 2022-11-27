@@ -6,19 +6,20 @@ import {
   LocalStoragePersistence,
   FileSystemPersistence,
 } from "./modules/persistence.js";
+import { getElementbyId } from "./modules/utils.js";
 
 // APP
-interface AppOptions {
-  rootId: string;
-  addBtnId: string;
-  inputId: string;
-  todoListId: string;
-  doneListId: string;
-  saveBtnId: string;
-  loadBtnId: string;
+interface AppInit {
+  root: HTMLElement;
+  addBtn: HTMLButtonElement;
+  input: HTMLInputElement;
+  todoList: HTMLUListElement;
+  doneList: HTMLUListElement;
   stateHandler: StateInterface;
   UUIDGenerator: UUIDInterface;
   statePersistence: StatePersistence;
+  saveBtn: HTMLButtonElement;
+  loadBtn: HTMLButtonElement;
 }
 
 class App {
@@ -34,33 +35,29 @@ class App {
   loadBtn: HTMLButtonElement;
 
   constructor({
-    rootId,
-    addBtnId,
-    inputId,
-    doneListId,
-    todoListId,
-    saveBtnId,
-    loadBtnId,
+    root,
+    addBtn,
+    input,
+    doneList,
+    todoList,
+    saveBtn,
+    loadBtn,
     stateHandler,
     UUIDGenerator,
     statePersistence,
-  }: AppOptions) {
-    this.root = this.getElementbyId(rootId);
-    this.addBtn = this.getElementbyId(addBtnId) as HTMLButtonElement;
-    this.input = this.getElementbyId(inputId) as HTMLInputElement;
-    this.todoList = this.getElementbyId(todoListId) as HTMLUListElement;
-    this.doneList = this.getElementbyId(doneListId) as HTMLUListElement;
+  }: AppInit) {
+    this.root = root;
+    this.addBtn = addBtn;
+    this.input = input;
+    this.todoList = todoList;
+    this.doneList = doneList;
     this.stateHandler = stateHandler;
     this.UUIDGenerator = UUIDGenerator;
     this.statePersistence = statePersistence;
-    this.saveBtn = this.getElementbyId(saveBtnId) as HTMLButtonElement;
-    this.loadBtn = this.getElementbyId(loadBtnId) as HTMLButtonElement;
+    this.saveBtn = saveBtn;
+    this.loadBtn = loadBtn;
 
     this.initiate();
-  }
-
-  getElementbyId(id: string) {
-    return document.querySelector(`#${id}`) as HTMLElement;
   }
 
   initiate() {
@@ -95,6 +92,8 @@ class App {
   }
 
   synchronizeHTMLWithLoadedState(state: StateInterface["state"]) {
+    this.todoList.innerHTML = "";
+    this.doneList.innerHTML = "";
     [...state.completeTodos, ...state.incompleteTodos].forEach((todo) =>
       this.addTodo(todo)
     );
@@ -155,13 +154,13 @@ class App {
 }
 
 new App({
-  rootId: "root",
-  addBtnId: "addBtn",
-  inputId: "input",
-  todoListId: "todo",
-  doneListId: "done",
-  saveBtnId: "save",
-  loadBtnId: "load",
+  root: getElementbyId("root"),
+  addBtn: getElementbyId("addBtn") as HTMLButtonElement,
+  input: getElementbyId("input") as HTMLInputElement,
+  todoList: getElementbyId("todoList") as HTMLUListElement,
+  doneList: getElementbyId("doneList") as HTMLUListElement,
+  saveBtn: getElementbyId("saveBtn") as HTMLButtonElement,
+  loadBtn: getElementbyId("loadBtn") as HTMLButtonElement,
   stateHandler: new BasicState(),
   UUIDGenerator: new CryptoUUID(),
   statePersistence: new LocalStoragePersistence(),
