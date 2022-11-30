@@ -1,6 +1,6 @@
 import { UUIDInterface, CryptoUUID } from "./modules/uuid.js";
 import { Todo } from "./modules/todo.js";
-import { StateInterface, BasicState } from "./modules/state.js";
+import { StateInterface, ImmutableState } from "./modules/state.js";
 import {
   StatePersistence,
   LocalStoragePersistence,
@@ -70,7 +70,7 @@ class App {
           new Date(),
           this.UUIDGenerator.createRandomUUID()
         );
-        this.stateHandler.reducer({ type: "add", payload: todo });
+        this.stateHandler.addTodo(todo);
         this.addTodo(todo);
       }
     });
@@ -106,8 +106,14 @@ class App {
     } else {
       this.doneList.appendChild(todoLi);
     }
-    deleteSpan.addEventListener("click", () => this.removeTodo(todo));
-    completeSpan.addEventListener("click", () => this.toggleDoneStatus(todo));
+    deleteSpan.addEventListener("click", () => {
+      const todoInState = this.stateHandler.findTodo("id", todo.id);
+      this.removeTodo(todoInState);
+    });
+    completeSpan.addEventListener("click", () => {
+      const todoInState = this.stateHandler.findTodo("id", todo.id);
+      this.toggleDoneStatus(todoInState);
+    });
   }
 
   generateTodoHTML(todo: Todo) {
@@ -133,23 +139,22 @@ class App {
       this.todoList.removeChild(todoLi);
     }
 
-    this.stateHandler.reducer({ type: "remove", payload: todo });
+    this.stateHandler.removeTodo(todo);
   }
 
   toggleDoneStatus(todo: Todo) {
     const li = document.querySelector(`[data-id="${todo.id}"]`);
+    li?.classList.toggle("done", todo.status === "incomplete");
 
     if (todo.status === "incomplete") {
       this.todoList.removeChild(li);
       this.doneList.append(li);
-      this.stateHandler.reducer({ type: "done", payload: todo });
+      this.stateHandler.markAsDone(todo);
     } else {
       this.doneList.removeChild(li);
       this.todoList.append(li);
-      this.stateHandler.reducer({ type: "undo", payload: todo });
+      this.stateHandler.markAsTodo(todo);
     }
-
-    li?.classList.toggle("done", todo.status === "complete");
   }
 }
 
@@ -161,7 +166,7 @@ new App({
   doneList: getElementbyId("doneList") as HTMLUListElement,
   saveBtn: getElementbyId("saveBtn") as HTMLButtonElement,
   loadBtn: getElementbyId("loadBtn") as HTMLButtonElement,
-  stateHandler: new BasicState(),
+  stateHandler: new ImmutableState(),
   UUIDGenerator: new CryptoUUID(),
   statePersistence: new LocalStoragePersistence(),
 });

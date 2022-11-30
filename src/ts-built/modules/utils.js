@@ -1,4 +1,22 @@
 const getElementbyId = (id) => {
     return document.querySelector(`#${id}`);
 };
-export { getElementbyId };
+const deepClone = (target) => {
+    if (typeof target === "object") {
+        const deepCopy = Array.isArray(target) ? [] : {};
+        Object.entries(target).forEach((entry) => {
+            const [key, value] = entry;
+            if (value !== target) {
+                deepCopy[key] = deepClone(value);
+            }
+            else {
+                deepCopy[key] = deepCopy;
+            }
+        });
+        return deepCopy;
+    }
+    else {
+        return target;
+    }
+};
+export { getElementbyId, deepClone };

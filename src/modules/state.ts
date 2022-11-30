@@ -7,78 +7,112 @@ type State = {
   incompleteTodos: Todo[];
 };
 
-type StateAction = {
-  type: "add" | "remove" | "done" | "undo";
-  payload: Todo;
-};
-
 interface StateInterface {
   state: State;
-  reducer: (action: StateAction) => void;
-  addTodo: (todo: Todo) => Todo;
-  removeTodo: (todo: Todo) => Todo;
-  markAsDone: (todo: Todo) => Todo;
-  markAsTodo: (todo: Todo) => Todo;
+  findTodo: (queryProp: keyof Todo, queryValue: any) => Todo;
+  addTodo: (todo: Todo) => void;
+  removeTodo: (todo: Todo) => void;
+  markAsDone: (todo: Todo) => void;
+  markAsTodo: (todo: Todo) => void;
 }
 
-class BasicState implements StateInterface {
+type ImmutableStateAction = {
+  type: "add" | "remove" | "done" | "undo";
+  payload: { todo: Todo };
+};
+
+type ImmutableStateReducer = (
+  state: State,
+  action: ImmutableStateAction
+) => State;
+
+class ImmutableState implements StateInterface {
   state: State = {
     completeTodos: [],
     incompleteTodos: [],
   };
 
-  reducer({ type, payload }: { type: string; payload: Todo }) {
+  reducer: ImmutableStateReducer = function (state, { type, payload }) {
+    ConsoleLogger.log(payload.todo, type);
     switch (type) {
-      case "add":
-        this.addTodo(payload);
-        break;
-      case "remove":
-        this.removeTodo(payload);
-        break;
-      case "done":
-        this.markAsDone(payload);
-        break;
-      case "undo":
-        this.markAsTodo(payload);
-        break;
-      default:
-        console.error(
-          `could not match action type ${type} for todo with id ${payload.id}}`
+      case "add": {
+        const incompleteTodos = [...state.incompleteTodos, payload.todo];
+        return { ...state, incompleteTodos };
+      }
+      case "remove": {
+        const completeTodos = state.completeTodos.filter(
+          (completeTodo) => completeTodo.id !== payload.todo.id
         );
+        const incompleteTodos = state.incompleteTodos.filter(
+          (incompleteTodo) => incompleteTodo.id !== payload.todo.id
+        );
+        return { ...state, completeTodos, incompleteTodos };
+      }
+      case "done": {
+        const doneTodo: Todo = {
+          ...payload.todo,
+          status: "complete",
+        };
+        const incompleteTodos = state.incompleteTodos.filter(
+          (incompleteTodo) => incompleteTodo.id !== doneTodo.id
+        );
+        const completeTodos = [...state.completeTodos, doneTodo];
+        return {
+          ...state,
+          incompleteTodos,
+          completeTodos,
+        };
+      }
+      case "undo": {
+        const undoneTodo: Todo = {
+          ...payload.todo,
+          status: "incomplete",
+        };
+        const completeTodos = state.completeTodos.filter(
+          (completeTodo) => completeTodo.id !== undoneTodo.id
+        );
+        const incompleteTodos = [...this.state.incompleteTodos, undoneTodo];
+        return { ...state, completeTodos, incompleteTodos };
+      }
+      default: {
+        return state;
+      }
     }
+  };
 
-    ConsoleLogger.log(payload, type);
+  findTodo(queryProp: keyof Todo, queryValue: any) {
+    const foundTodo: Todo = [
+      ...this.state.completeTodos,
+      ...this.state.incompleteTodos,
+    ].find((todo) => todo[queryProp] === queryValue);
+
+    return foundTodo;
   }
 
   addTodo(todo: Todo) {
-    this.state.incompleteTodos = [...this.state.incompleteTodos, todo];
-    return todo;
+    this.state = this.reducer(this.state, {
+      type: "add",
+      payload: { todo },
+    });
   }
   removeTodo(todo: Todo) {
-    this.state.completeTodos = this.state.completeTodos.filter(
-      (completeTodo) => completeTodo.id !== todo.id
-    );
-    this.state.incompleteTodos = this.state.incompleteTodos.filter(
-      (incompleteTodo) => incompleteTodo.id !== todo.id
-    );
-    return todo;
+    this.state = this.reducer(this.state, {
+      type: "remove",
+      payload: { todo },
+    });
   }
   markAsDone(todo: Todo) {
-    todo.status = "complete";
-    this.state.incompleteTodos = this.state.incompleteTodos.filter(
-      (incompleteTodo) => incompleteTodo.id !== todo.id
-    );
-    this.state.completeTodos = [...this.state.completeTodos, todo];
-    return todo;
+    this.state = this.reducer(this.state, {
+      type: "done",
+      payload: { todo },
+    });
   }
   markAsTodo(todo: Todo) {
-    todo.status = "incomplete";
-    this.state.completeTodos = this.state.completeTodos.filter(
-      (completeTodo) => completeTodo.id !== todo.id
-    );
-    this.state.incompleteTodos = [...this.state.incompleteTodos, todo];
-    return todo;
+    this.state = this.reducer(this.state, {
+      type: "undo",
+      payload: { todo },
+    });
   }
 }
 
-export { StateInterface, BasicState };
+export { StateInterface, ImmutableState };
